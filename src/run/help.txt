@@ -1,0 +1,13 @@
+Help:
+Enter a mathematical expression to calculate it, for example:
+    1 + 1
+
+You can define constants and functions, for example:
+    pi = 3.1415
+    f(x) = x^2
+
+Type :quit or :q to quit.
+Type :delete <name> or :d <name> to delete a constant or function you have previously defined.
+Type :load <filename> or :l <filename> to load constants and functions from a file.
+Type :format <format> or :f <format> to change the format in which numbers are displayed.
+Type :help or :h to see this message.

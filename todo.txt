@@ -1,0 +1,7 @@
+All done!
+
+Optional:
+Delete old definitions when they become unreachable.
+Optimize the interpreter.
+Improve the root finding algorithm (maybe use Newton's method).
+Make ctrl+c stop infinite loops.

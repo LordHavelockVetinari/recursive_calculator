@@ -1,0 +1,42 @@
+********************
+* Useful constants *
+* and functions.   *
+********************
+
+π = 3.14159265358979323846264338327950288419716939937510
+
+abs(x) = (x ^ 2) ^ 0.5
+sgn(x) = 1 / x * abs(x)
+Δ(x, y) = ((x - y) ^ 2) ^ 0.5
+
+** Factorial **
+fact(n) = 0^n + n*fact(n - 1)
+
+bool(x) = 1 / x * x
+zero(x) = not(x) = 1 - 1/x*x
+and(x, y) = bool(x * y)
+or(x, y) = not((1 - 1/x*x) * (1 - 1/y*y))
+
+if'(c, x, y) = c*x + (1 - c)*y
+if(c, x, y) = if'(bool(c), x, y)
+
+neg(x) = bool(x - abs(x))
+pos(x) = bool(x + abs(x))
+nonneg(x) = zero(x - abs(x))
+nonpos(x) = zero(x + abs(x))
+
+divisible(x, y) = or(zero(x), and(pos(x), divisible(x - y, y)))
+prime'(n, k) = or(zero(k - 1), and(not(divisible(n, k)), prime'(n, k - 1)))
+prime(n) = and(pos(n - 1), prime'(n, n - 1))
+
+fib(i) = if(neg(i - 2), i, fib(i - 1) + fib(i - 2))
+
+odd(n) = (-0.5 * (-1)^n) + 0.5
+even(n) = ((-1)^n + 1) / 2
+shr(n) = (n - odd(n)) / 2
+
+exp(x, n) = nonneg(n) * (x^n / fact(n) + exp(x, n - 1))
+e = exp(1, 50)
+
+approxSqrt'(x, guess, i) = guess * 0^i + approxSqrt'(x, guess - (guess^2 - x)/(2*guess), i - 1)/i*i
+approxSqrt(x) = approxSqrt'(x, x, 10)
