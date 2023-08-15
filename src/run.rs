@@ -5,6 +5,11 @@ use crate::{compile, parse};
 use std::error::Error;
 use std::fs;
 use std::ops::ControlFlow;
+use std::path::Path;
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+struct ErrorMessage(String);
 
 fn maybe_suggest_help(env: &mut Environment) -> Result<(), Box<dyn Error>> {
     if env.suggest_help {
@@ -20,30 +25,38 @@ fn run_str(code: &str, program: &mut Program, env: &mut Environment) -> Result<(
     let code = match parse::parse(code) {
         Ok(code) => code,
         Err(err) => {
+            if env.are_errors_fatal {
+                return Err(ErrorMessage(err.to_string()).into());
+            }
             writeln!(env.error_output, "{err}")?;
             maybe_suggest_help(env)?;
             return Ok(());
         }
     };
-    let backup = program.clone();
+    let backup = (!env.are_errors_fatal).then(|| program.clone());
     if let Err(err) = compile::compile_into(code, program) {
+        if env.are_errors_fatal {
+            return Err(err.into());
+        }
         writeln!(env.error_output, "{err}")?;
         maybe_suggest_help(env)?;
-        *program = backup;
+        *program = backup.unwrap();
         return Ok(());
     }
     program.run(env)?;
     Ok(())
 }
 
-pub fn run_file(filename: &str, env: &mut Environment) -> Result<(), Box<dyn Error>> {
-    let mut program = Program::new();
+pub fn run_file(
+    filename: &Path,
+    program: &mut Program,
+    env: &mut Environment,
+) -> Result<(), Box<dyn Error>> {
     let code = fs::read_to_string(filename)?;
-    run_str(&code, &mut program, env)
+    run_str(&code, program, env)
 }
 
-pub fn repl(env: &mut Environment) -> Result<(), Box<dyn Error>> {
-    let mut program = Program::new();
+pub fn repl(program: &mut Program, env: &mut Environment) -> Result<(), Box<dyn Error>> {
     let mut line_buf = String::new();
     env.suggest_help = true;
     if env.show_welcome_message {
@@ -62,12 +75,12 @@ pub fn repl(env: &mut Environment) -> Result<(), Box<dyn Error>> {
             break;
         };
         if line_buf.trim_start().starts_with(':') {
-            match special_command::run(&line_buf, &mut program, env)? {
+            match special_command::run(&line_buf, program, env)? {
                 ControlFlow::Break(()) => break,
                 ControlFlow::Continue(()) => continue,
             }
         }
-        run_str(&line_buf, &mut program, env)?;
+        run_str(&line_buf, program, env)?;
     }
     Ok(())
 }
@@ -86,7 +99,7 @@ mod test {
             show_welcome_message: false,
             ..Environment::default()
         };
-        repl(&mut env).unwrap();
+        repl(&mut Program::new(), &mut env).unwrap();
         drop(env);
         assert_eq!(std::str::from_utf8(&output).unwrap(), expected_output);
         assert_eq!(

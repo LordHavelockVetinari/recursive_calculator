@@ -122,12 +122,12 @@ fn compile_function(
     params: &[String],
     code: &p::Expression,
 ) -> Result<(), CompilationError> {
-    for (i, p) in params.into_iter().enumerate() {
+    for (i, p) in params.iter().enumerate() {
         if program.get_constant_or_function(p).is_some() {
             return Err(CompilationError::ParamShadowsGlobal(p.clone()));
         }
         if params[..i].contains(p) {
-            return Err(CompilationError::DuplicateParameter(p.to_string()))
+            return Err(CompilationError::DuplicateParameter(p.to_string()));
         }
     }
     let context = LocalContext {
