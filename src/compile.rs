@@ -17,7 +17,7 @@ pub enum CompilationError {
     ConstantNotFunction(String),
     #[error("{0} is a function, not a constant")]
     FunctionNotConstant(String),
-    #[error("constant or function {0:?} declared twice")]
+    #[error("constant or function {0:?} declared more than once")]
     DuplicateDeclaration(String),
     #[error("bad equation")]
     BadEquation,
@@ -25,6 +25,8 @@ pub enum CompilationError {
     BadParameter,
     #[error("parameter {0:?} shadows a global constant or function")]
     ParamShadowsGlobal(String),
+    #[error("parameter {0:?} declared more than once")]
+    DuplicateParameter(String),
     #[error("function {0:?} got {1} argument(s) instead of {2}")]
     WrongNArgs(String, usize, usize),
 }
@@ -120,9 +122,12 @@ fn compile_function(
     params: &[String],
     code: &p::Expression,
 ) -> Result<(), CompilationError> {
-    for p in params {
+    for (i, p) in params.into_iter().enumerate() {
         if program.get_constant_or_function(p).is_some() {
             return Err(CompilationError::ParamShadowsGlobal(p.clone()));
+        }
+        if params[..i].contains(p) {
+            return Err(CompilationError::DuplicateParameter(p.to_string()))
         }
     }
     let context = LocalContext {
