@@ -162,7 +162,7 @@ impl Expression {
 
     pub fn simplify(&mut self, gen: &mut BoolGen) -> SimplifyResult {
         use SimplifyStepResult::*;
-        // to_simplify should be &mut ExpressionInner, but the borrow checker doesn't like that.
+        // to_simplify should be &mut Expression, but the borrow checker doesn't like that.
         // I think that's a bug in the borrow checker ¯\_(ツ)_/¯.
         let mut to_simplify = self as *mut Expression;
         loop {
