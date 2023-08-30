@@ -1,4 +1,4 @@
-All done!
+The parser allows expressions like "1 *** ** 2" when it shouldn't.
 
 Optional:
 Delete old definitions when they become unreachable.

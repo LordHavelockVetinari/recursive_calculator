@@ -3,40 +3,142 @@
 * and functions.   *
 ********************
 
-π = 3.14159265358979323846264338327950288419716939937510
-
+** Finds the absolute value of x **
 abs(x) = (x ^ 2) ^ 0.5
-sgn(x) = 1 / x * abs(x)
-Δ(x, y) = ((x - y) ^ 2) ^ 0.5
 
-** Factorial **
+*** Finds the sign of x:
+    -1 if x is negative;
+    0 if x is zero;
+    1 if x is positive. ***
+sgn(x) = 1 / x * abs(x)
+
+*** Finds the absolute difference of x and y. ***
+Δ(x, y) = delta(x, y) = ((x - y) ^ 2) ^ 0.5
+
+** Finds the factorial of n. **
 fact(n) = 0^n + n*fact(n - 1)
 
+*** Returns 0 if x = 0, or 1 otherwise. ***
 bool(x) = 1 / x * x
+
+** Returns 1 if x = 0, or 0 otherwise. **
 zero(x) = not(x) = 1 - 1/x*x
+
+** Returns 0 if either x = 0 or y = 0, or 1 otherwise. **
 and(x, y) = bool(x * y)
+
+** Returns 0 if x = y = 0, or 1 otherwise. **
 or(x, y) = not((1 - 1/x*x) * (1 - 1/y*y))
 
+*** if(c, x, y) returns y if c = 0, or x otherwise.
+    x or y may be undefined as long as they're not the final result of the if() ***
 if'(c, x, y) = c*x + (1 - c)*y
 if(c, x, y) = if'(bool(c), x, y)
 
+** Returns 1 if x is negative, or 0 otherwise. **
 neg(x) = bool(x - abs(x))
+
+** Returns 1 if x is positive, or 0 otherwise. **
 pos(x) = bool(x + abs(x))
+
+** Returns 1 if x is nonnegative, or 0 otherwise. **
 nonneg(x) = zero(x - abs(x))
+
+** Returns 1 if x is nonpositive, or 0 otherwise. **
 nonpos(x) = zero(x + abs(x))
 
-divisible(x, y) = or(zero(x), and(pos(x), divisible(x - y, y)))
-prime'(n, k) = or(zero(k - 1), and(not(divisible(n, k)), prime'(n, k - 1)))
-prime(n) = and(pos(n - 1), prime'(n, n - 1))
-
+** Returns the i'th Fibonacci number. **
 fib(i) = if(neg(i - 2), i, fib(i - 1) + fib(i - 2))
 
+** Returns 1 if n is odd, or 0 otherwise. **
 odd(n) = (-0.5 * (-1)^n) + 0.5
+
+** Returns 1 if n is even, or 0 otherwise. **
 even(n) = ((-1)^n + 1) / 2
+
+** Removes the least significant bit in the binary representation of n. **
 shr(n) = (n - odd(n)) / 2
 
-exp(x, n) = nonneg(n) * (x^n / fact(n) + exp(x, n - 1))
-e = exp(1, 50)
+*** Finds x modulo y.
+    x must be nonnegative and y must be positive.
+    They don't have to be integers. ***
+mod(x, y) = if(neg(x - y), x, if(neg(x - 2*y), x - y, mod(mod(x, y * 2), y)))
 
-approxSqrt'(x, guess, i) = guess * 0^i + approxSqrt'(x, guess - (guess^2 - x)/(2*guess), i - 1)/i*i
-approxSqrt(x) = approxSqrt'(x, x, 10)
+** prime(n) returns 1 if n is prime, or 0 otherwise. **
+prime'(n, k) = or(zero(k - 1), and(mod(n, k), prime'(n, k - 1)))
+prime(n) = and(pos(n - 1), prime'(n, n - 1))
+
+** Greatest common divisor. **
+gcd(a, b) = if(b, gcd(b, mod(a, b)), a)
+
+** Least common multiple. **
+lcm(a, b) = a * b / gcd(a, b)
+
+*** approx(x, δ) finds a fraction at a distance of up to δ from x.
+    If x is a "simple" number (i.e. it has a relatively small denominator), approx(x, δ) will usually just return x.
+    If x has a very large denominator, approx(x, δ) will try to find "simpler" number that's very close to x.
+    δ must be between 0 and 1. ***
+approx''(x, nl, dl, nm, dm, nh, dh, δ) = if(
+    pos(x - nm/dm),
+    if(pos(δ - (nh/dh - x)), nh / dh, approx''(x, nm, dm, (nm + nh) / gcd(nm + nh, dm + dh), (dm + dh) / gcd(nm + nh, dm + dh), nh, dh, δ)),
+    if(pos(δ - (x - nl/dl)), nl / dl, approx''(x, nl, dl, (nm + nl) / gcd(nm + nl, dm + dl), (dm + dl) / gcd(nm + nl, dm + dl), nm, dm, δ)),
+)
+approx'(x, m, δ) = x - m + approx''(m, 0, 1, 1, 2, 1, 1, δ)
+approx(x, δ) = if(neg(x), -approx(-x, δ), approx'(x, mod(x, 1), δ))
+
+
+*********************************************************************
+* Warning:                                                          *
+* The following functions and constants are rational approximations *
+* of (usually) irrational functions and constants.                  *
+*********************************************************************
+
+** π, Archimedes' constant. **
+π = pi = 3.14159265358979323846264338327950288419716939937510
+
+** exp(x) is the exponential function, e^x. **
+exp'(x, n) = nonneg(n) * (x^n / fact(n) + exp'(x, n - 1))
+exp(x) = exp'(x, 50)
+
+** e, Euler's number. **
+e = exp(1)
+
+** ln(x) is the natural logarithm of x. **
+sqrtE = exp(0.5)
+lnScale(x) = if(pos(x - 1.6), lnScale(x / sqrtE) + 1, if(neg(x - 0.5), lnScale(x * sqrtE) - 1, 0))
+ln''(x, n) = (x - x*n/(n + 1)*ln''(x, n + 1)) * bool(10 - n)
+ln'(x, s) = ln''(x / sqrtE^s - 1, 1) + s/2
+ln(x) = ln'(x, lnScale(x))
+
+** Logarithm of x to the base b. **
+log(b, x) = ln(x) / ln(b)
+
+** sqrt(x) finds the square root of x using Newton's method. **
+sqrt'(x, guess, i) = guess * 0^i + sqrt'(x, guess - (guess^2 - x)/(2*guess), i - 1)/i*i
+sqrt(x) = sqrt'(x, x, 10)
+
+** sin(θ) finds the sine of θ using a Madhava series. **
+sin''(θ, x, n, n') = (x + sin''(θ, -x * θ^2 / ((n + 1) * (n + 2)), n + 2, n' - 1)) / n' * n'
+sin'(θ) = sin''(θ, θ, 1, 20)
+sin(θ) = sgn(θ) * sin'(mod(abs(θ), 2*π))
+
+** Finds the cosine of θ. **
+cos(θ) = sin(π/2 - θ)
+
+** Finds the tangent of θ. **
+tan(θ) = sin(θ) / cos(θ)
+
+** Finds the cotangent of θ. **
+cot(θ) = cos(θ) / sin(θ)
+
+** Finds the hyperbolic sine of x. **
+sinh(x) = (exp(x) - exp(-x)) / 2
+
+** Finds the hyperbolic cosine of x. **
+cosh(x) = (exp(x) + exp(-x)) / 2
+
+** Finds the hyperbolic tangent of x. **
+tanh(x) = (exp(2*x) - 1) / (exp(2*x) + 1)
+
+** Finds the hyperbolic cotangent of x. **
+coth(x) = (exp(2*x) + 1) / (exp(2*x) - 1)
