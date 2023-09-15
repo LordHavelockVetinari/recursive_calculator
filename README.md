@@ -117,7 +117,7 @@ The factorial function (denoted `n!` or `fact(n)`) is often defined by the follo
 
     1. If n = 0, n! = 1.
     2. If n > 0, n! = n * (n - 1)!
-    3. If n is is negative or not an integer, n! is undefined.
+    3. If n is negative or not an integer, n! is undefined.
 
 In recalc, we can define it more concisely:
 
