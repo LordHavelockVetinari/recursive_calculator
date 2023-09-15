@@ -104,9 +104,9 @@ exp(x) = exp'(x, 50)
 e = exp(1)
 
 ** ln(x) is the natural logarithm of x. **
-sqrtE = exp(0.5)
+sqrtE = approx(exp(0.5), 1 / 10^10)
 lnScale(x) = if(pos(x - 1.6), lnScale(x / sqrtE) + 1, if(neg(x - 0.5), lnScale(x * sqrtE) - 1, 0))
-ln''(x, n) = (x - x*n/(n + 1)*ln''(x, n + 1)) * bool(10 - n)
+ln''(x, n) = (x - x*n/(n + 1)*ln''(x, n + 1)) * bool(30 - n)
 ln'(x, s) = ln''(x / sqrtE^s - 1, 1) + s/2
 ln(x) = ln'(x, lnScale(x))
 
