@@ -15,11 +15,17 @@ sgn(x) = 1 / x * abs(x)
 *** Finds the absolute difference of x and y. ***
 Δ(x, y) = delta(x, y) = ((x - y) ^ 2) ^ 0.5
 
+** Returns the minimum of x and y. **
+min(x, y) = (x + y - Δ(x, y)) / 2
+
+** Returns the maximum of x and y. **
+max(x, y) = (x + y + Δ(x, y)) / 2
+
 ** Finds the factorial of n. **
 fact(n) = 0^n + n*fact(n - 1)
 
 *** Returns 0 if x = 0, or 1 otherwise. ***
-bool(x) = 1 / x * x
+nonzero(x) = bool(x) = 1 / x * x
 
 ** Returns 1 if x = 0, or 0 otherwise. **
 zero(x) = not(x) = 1 - 1/x*x
@@ -73,6 +79,9 @@ gcd(a, b) = if(b, gcd(b, mod(a, b)), a)
 
 ** Least common multiple. **
 lcm(a, b) = a * b / gcd(a, b)
+
+** Returns the number of combinations of k elements in a set of n elements. **
+choose(n, k) = if(k, choose(n - 1, k - 1) * n / k, 1)
 
 *** approx(x, δ) finds a fraction at a distance of up to δ from x.
     If x is a "simple" number (i.e. it has a relatively small denominator), approx(x, δ) will usually just return x.
