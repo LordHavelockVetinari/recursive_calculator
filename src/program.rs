@@ -1,14 +1,21 @@
-use crate::bool_gen::BoolGen;
+use crate::ctrlc_handler::CtrlCError;
+use crate::environment::{Environment, EvaluationEnvironemnt};
 use crate::expression::{Expression, SimplifyResult};
-use crate::math::format::{Format, FormattedValue};
 use crate::math::Value;
 use either::Either;
 use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error;
-use std::io::{self, BufRead, Write};
+use std::io::{self};
 use std::rc::{Rc, Weak};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProgramError {
+    #[error(transparent)]
+    IoError(#[from] io::Error),
+    #[error(transparent)]
+    CtrlCError(#[from] CtrlCError),
+}
 
 pub struct LazyExpression {
     expression: RefCell<Expression>,
@@ -34,30 +41,33 @@ impl LazyExpression {
         self.value.get()
     }
 
-    fn simplify(&self, gen: &mut BoolGen) -> Option<&Value> {
+    fn simplify(&self, env: &mut EvaluationEnvironemnt) -> Result<Option<&Value>, CtrlCError> {
         if let Some(n) = self.value.get() {
-            return Some(n);
+            return Ok(Some(n));
         }
         let mut expr = self.expression.try_borrow_mut().unwrap();
-        match expr.simplify(gen) {
+        match expr.simplify(env)? {
             SimplifyResult::Done => {
-                let n = expr.value_if_found()?;
+                let Some(n) = expr.value_if_found() else {
+                    return Ok(None);
+                };
                 self.value
                     .set(n.clone())
                     .unwrap_or_else(|_| panic!("expression was evaluated twice"));
-                self.value.get()
+                Ok(self.value.get())
             }
             SimplifyResult::SimplifyConstant(to_simplify) => {
-                to_simplify.simplify(gen);
-                None
+                to_simplify.simplify(env)?;
+                Ok(None)
             }
         }
     }
 
-    pub fn evaluate(&self, gen: &mut BoolGen) -> &Value {
+    pub fn evaluate(&self, env: &mut EvaluationEnvironemnt) -> Result<&Value, CtrlCError> {
         loop {
-            if let Some(n) = self.simplify(gen) {
-                return n;
+            env.tick()?;
+            if let Some(n) = self.simplify(env)? {
+                return Ok(n);
             }
         }
     }
@@ -116,25 +126,26 @@ impl WeakConstant {
             .cloned()
     }
 
-    fn simplify(self, gen: &mut BoolGen) {
+    fn simplify(self, env: &mut EvaluationEnvironemnt) -> Result<(), CtrlCError> {
         let mut to_simplify = self;
         loop {
+            env.tick()?;
             let rc = to_simplify
                 .data
                 .upgrade()
                 .expect("constant reference was dropped too early");
             if rc.value.get().is_some() {
-                return;
+                return Ok(());
             }
             let mut expr = rc.expression.try_borrow_mut().unwrap();
-            match expr.simplify(gen) {
+            match expr.simplify(env)? {
                 SimplifyResult::Done => {
                     if let Some(n) = expr.value_if_found() {
                         rc.value
                             .set(n.clone())
                             .unwrap_or_else(|_| panic!("expression was evaluated twice"));
                     }
-                    return;
+                    return Ok(());
                 }
                 SimplifyResult::SimplifyConstant(new_to_simplify) => to_simplify = new_to_simplify,
             }
@@ -288,45 +299,13 @@ impl Program {
         self.to_evaluate.push(expr);
     }
 
-    pub fn run(&mut self, env: &mut Environment<'_>) -> Result<(), Box<dyn Error>> {
+    pub fn run(&mut self, env: &mut Environment<'_>) -> Result<(), ProgramError> {
         for expr in self.to_evaluate.drain(..) {
             let expr = LazyExpression::new(expr);
-            let value = expr.evaluate(&mut env.bool_gen);
+            let value = expr
+                .evaluate(&mut env.evaluation_environment)?;
             env.output_value(value)?;
         }
-        Ok(())
-    }
-}
-
-pub struct Environment<'a> {
-    pub input: Box<dyn BufRead + 'a>,
-    pub output: Box<dyn Write + 'a>,
-    pub error_output: Box<dyn Write + 'a>,
-    pub output_format: Format,
-    pub are_errors_fatal: bool,
-    pub suggest_help: bool,
-    pub show_welcome_message: bool,
-    pub bool_gen: BoolGen,
-}
-
-impl Default for Environment<'_> {
-    fn default() -> Self {
-        Self {
-            input: Box::new(std::io::stdin().lock()),
-            output: Box::new(std::io::stdout()),
-            error_output: Box::new(std::io::stderr()),
-            output_format: Format::default(),
-            are_errors_fatal: false,
-            suggest_help: false,
-            show_welcome_message: true,
-            bool_gen: BoolGen::new(),
-        }
-    }
-}
-
-impl<'a> Environment<'a> {
-    pub fn output_value(&mut self, value: &Value) -> Result<(), io::Error> {
-        writeln!(self.output, "{}", FormattedValue(self.output_format, value))?;
         Ok(())
     }
 }

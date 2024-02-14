@@ -1,20 +1,17 @@
 mod special_command;
 
-use crate::program::{Environment, Program};
-use crate::{compile, parse};
+use crate::environment::Environment;
+use crate::program::{Program, ProgramError};
+use crate::{compile, garbage, parse};
 use std::error::Error;
 use std::fs;
 use std::ops::ControlFlow;
 use std::path::Path;
 
-#[derive(Debug, thiserror::Error)]
-#[error("{0}")]
-struct ErrorMessage(String);
-
 fn maybe_suggest_help(env: &mut Environment) -> Result<(), Box<dyn Error>> {
-    if env.suggest_help {
+    if env.io_options.suggest_help {
         writeln!(
-            env.error_output,
+            env.error_output(),
             "(For more information, type :help and press enter.)"
         )?;
     }
@@ -22,29 +19,34 @@ fn maybe_suggest_help(env: &mut Environment) -> Result<(), Box<dyn Error>> {
 }
 
 fn run_str(code: &str, program: &mut Program, env: &mut Environment) -> Result<(), Box<dyn Error>> {
+    env.ignore_ctrlc();
     let code = match parse::parse(code) {
         Ok(code) => code,
         Err(err) => {
-            if env.are_errors_fatal {
-                return Err(ErrorMessage(err.to_string()).into());
+            if env.io_options.are_errors_fatal {
+                return Err(err.to_string().into());
             }
-            writeln!(env.error_output, "{err}")?;
+            writeln!(env.error_output(), "{err}")?;
             maybe_suggest_help(env)?;
             return Ok(());
         }
     };
-    let backup = (!env.are_errors_fatal).then(|| program.clone());
+    let backup = (!env.io_options.are_errors_fatal).then(|| program.clone());
     if let Err(err) = compile::compile_into(code, program) {
-        if env.are_errors_fatal {
+        if env.io_options.are_errors_fatal {
             return Err(err.into());
         }
-        writeln!(env.error_output, "{err}")?;
+        writeln!(env.io_options.error_output, "{err}")?;
         maybe_suggest_help(env)?;
         *program = backup.unwrap();
         return Ok(());
     }
-    program.run(env)?;
-    Ok(())
+    let res = program.run(env);
+    garbage::collect();
+    match res {
+        Ok(()) | Err(ProgramError::CtrlCError(_)) => Ok(()),
+        Err(ProgramError::IoError(err)) => Err(err.into()),
+    }
 }
 
 pub fn run_file(
@@ -58,20 +60,20 @@ pub fn run_file(
 
 pub fn repl(program: &mut Program, env: &mut Environment) -> Result<(), Box<dyn Error>> {
     let mut line_buf = String::new();
-    env.suggest_help = true;
-    if env.show_welcome_message {
+    env.io_options.suggest_help = true;
+    if env.io_options.show_welcome_message {
         writeln!(
-            env.output,
+            env.output(),
             "Recursive Calculator {}!\n\
             Type :help and press enter for more information.",
             clap::crate_version!()
         )?;
     }
     loop {
-        write!(env.output, "recalc> ")?;
-        env.output.flush()?;
+        write!(env.output(), "recalc> ")?;
+        env.output().flush()?;
         line_buf.clear();
-        if env.input.read_line(&mut line_buf)? == 0 {
+        if env.input().read_line(&mut line_buf)? == 0 {
             break;
         };
         if line_buf.trim_start().starts_with(':') {
@@ -92,13 +94,11 @@ mod test {
     fn assert_repl(input: &str, expected_output: &str, expected_error_output: &str) {
         let mut output = Vec::<u8>::new();
         let mut error_output = Vec::<u8>::new();
-        let mut env = Environment {
-            input: Box::new(input.as_bytes()),
-            output: Box::new(&mut output),
-            error_output: Box::new(&mut error_output),
-            show_welcome_message: false,
-            ..Environment::default()
-        };
+        let mut env = Environment::default();
+        env.io_options.input = Box::new(input.as_bytes());
+        env.io_options.output = Box::new(&mut output);
+        env.io_options.error_output = Box::new(&mut error_output);
+        env.io_options.show_welcome_message = false;
         repl(&mut Program::new(), &mut env).unwrap();
         drop(env);
         assert_eq!(std::str::from_utf8(&output).unwrap(), expected_output);

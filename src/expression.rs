@@ -1,4 +1,6 @@
-use crate::bool_gen::BoolGen;
+use crate::ctrlc_handler::CtrlCError;
+use crate::environment::EvaluationEnvironemnt;
+use crate::garbage;
 use crate::math::{self, Value};
 use crate::program::{LazyExpression, WeakConstant, WeakFunction};
 use malachite::num::basic::traits::One;
@@ -31,6 +33,29 @@ enum SimplifyStepResult<'a> {
 pub enum SimplifyResult {
     Done,
     SimplifyConstant(WeakConstant),
+}
+
+impl Drop for Expression {
+    fn drop(&mut self) {
+        use Expression::*;
+        match self {
+            Value(_) | Argument(_) | Constant(_) | ArgumentIndex(_) => {}
+            Neg(expr) => garbage::dispose(mem::take(expr)),
+            Add(left, right)
+            | Sub(left, right)
+            | Mul(left, right)
+            | Div(left, right)
+            | Pow(left, right) => {
+                garbage::dispose(mem::take(left));
+                garbage::dispose(mem::take(right));
+            }
+            Call(_, exprs) => {
+                for expr in exprs.drain(..) {
+                    garbage::dispose(expr);
+                }
+            }
+        }
+    }
 }
 
 impl Expression {
@@ -72,7 +97,9 @@ impl Expression {
         }
     }
 
-    fn simplify_step(&mut self, gen: &mut BoolGen) -> SimplifyStepResult<'_> {
+    // If simplify_step returns ReplaceWith, you must replace the expression immediately!
+    // Otherwise, the expression may be in an invalid state.
+    fn simplify_step(&mut self, env: &mut EvaluationEnvironemnt) -> SimplifyStepResult<'_> {
         use Expression::*;
         use SimplifyStepResult::*;
         match self {
@@ -105,7 +132,7 @@ impl Expression {
                 (Some(left), Some(right)) => ReplaceWith(Value(mem::take(left) + right)),
                 (Some(_), None) => SimplifyPart(right),
                 (None, Some(_)) => SimplifyPart(left),
-                (None, None) if gen.gen() => SimplifyPart(left),
+                (None, None) if env.gen_bool() => SimplifyPart(left),
                 (None, None) => SimplifyPart(right),
             },
             Sub(left, right) => match (left.value_if_found_mut(), right.value_if_found_mut()) {
@@ -115,7 +142,7 @@ impl Expression {
                 (Some(left), Some(right)) => ReplaceWith(Value(mem::take(left) - right)),
                 (Some(_), None) => SimplifyPart(right),
                 (None, Some(_)) => SimplifyPart(left),
-                (None, None) if gen.gen() => SimplifyPart(left),
+                (None, None) if env.gen_bool() => SimplifyPart(left),
                 (None, None) => SimplifyPart(right),
             },
             Mul(left, right) => match (left.value_if_found_mut(), right.value_if_found_mut()) {
@@ -123,7 +150,7 @@ impl Expression {
                 (Some(n), Some(m)) => ReplaceWith(Value(mem::take(n) * m)),
                 (Some(_), None) => SimplifyPart(right),
                 (None, Some(_)) => SimplifyPart(left),
-                (None, None) if gen.gen() => SimplifyPart(left),
+                (None, None) if env.gen_bool() => SimplifyPart(left),
                 (None, None) => SimplifyPart(right),
             },
 
@@ -134,7 +161,7 @@ impl Expression {
                 (Some(left), Some(right)) => ReplaceWith(Value(mem::take(left) / right)),
                 (Some(_), None) => SimplifyPart(right),
                 (None, Some(_)) => SimplifyPart(left),
-                (None, None) if gen.gen() => SimplifyPart(left),
+                (None, None) if env.gen_bool() => SimplifyPart(left),
                 (None, None) => SimplifyPart(right),
             },
 
@@ -146,7 +173,7 @@ impl Expression {
                 }
                 (Some(_), None) => SimplifyPart(right),
                 (None, Some(_)) => SimplifyPart(left),
-                (None, None) if gen.gen() => SimplifyPart(left),
+                (None, None) if env.gen_bool() => SimplifyPart(left),
                 (None, None) => SimplifyPart(right),
             },
             Call(func, ref mut args) => {
@@ -160,21 +187,25 @@ impl Expression {
         }
     }
 
-    pub fn simplify(&mut self, gen: &mut BoolGen) -> SimplifyResult {
+    pub fn simplify(
+        &mut self,
+        env: &mut EvaluationEnvironemnt,
+    ) -> Result<SimplifyResult, CtrlCError> {
         use SimplifyStepResult::*;
         // to_simplify should be &mut Expression, but the borrow checker doesn't like that.
         // I think that's a bug in the borrow checker ¯\_(ツ)_/¯.
         let mut to_simplify = self as *mut Expression;
         loop {
+            env.tick()?;
             unsafe {
-                match (*to_simplify).simplify_step(gen) {
-                    AlreadySimplified => return SimplifyResult::Done,
+                match (*to_simplify).simplify_step(env) {
+                    AlreadySimplified => return Ok(SimplifyResult::Done),
                     ReplaceWith(result) => {
                         *to_simplify = result;
-                        return SimplifyResult::Done;
+                        return Ok(SimplifyResult::Done);
                     }
                     SimplifyPart(new_to_simplify) => to_simplify = new_to_simplify,
-                    SimplifyConstant(con) => return SimplifyResult::SimplifyConstant(con),
+                    SimplifyConstant(con) => return Ok(SimplifyResult::SimplifyConstant(con)),
                 }
             }
         }
