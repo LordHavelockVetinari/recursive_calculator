@@ -2,6 +2,7 @@
 // fastrand::bool() generates a whole u64 and then discards 63 bits.
 // My BoolGen hopefully generates booleans faster.
 
+#[derive(Debug)]
 pub struct BoolGen {
     rng: fastrand::Rng,
     bits: u64,

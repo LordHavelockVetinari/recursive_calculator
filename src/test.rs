@@ -1,5 +1,5 @@
+use crate::environment::Environment;
 use crate::math::format::Format;
-use crate::program::Environment;
 use crate::{compile, parse};
 use itertools::Itertools;
 use std::fs;
@@ -24,11 +24,9 @@ fn interpreter_test() {
     .filter(|line| !line.trim_start().starts_with('#'))
     .join("\n");
     let mut output: Vec<u8> = vec![];
-    let mut env = Environment {
-        output: Box::new(&mut output),
-        output_format: Format::Fraction,
-        ..Environment::default()
-    };
+    let mut env = Environment::default();
+    env.io_options.output = Box::new(&mut output);
+    env.io_options.output_format = Format::Fraction;
     let code = parse::parse(&input).unwrap();
     let mut program = compile::compile(code).unwrap();
     program.run(&mut env).unwrap();

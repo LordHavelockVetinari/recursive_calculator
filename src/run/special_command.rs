@@ -3,8 +3,9 @@ use std::fs;
 use std::ops::ControlFlow;
 use std::str::FromStr;
 
+use crate::environment::Environment;
 use crate::math::format;
-use crate::program::{Environment, Program};
+use crate::program::Program;
 
 pub type Result = std::result::Result<ControlFlow<()>, Box<dyn Error>>;
 
@@ -27,16 +28,17 @@ struct Format {
 impl Command for Format {
     fn run(&self, _program: &mut Program, env: &mut Environment) -> Result {
         if self.new_format.is_empty() {
-            writeln!(env.output, "The current format is: {}.", env.output_format)?;
+            let fmt = env.io_options.output_format;
+            writeln!(env.output(), "The current format is: {}.", fmt,)?;
             writeln!(
-                env.output,
+                env.output(),
                 "Type :format fraction, :format mixed or :format scientific to change it."
             )?;
             return Ok(ControlFlow::Continue(()));
         }
         match format::Format::from_str(&self.new_format) {
-            Ok(fmt) => env.output_format = fmt,
-            Err(err) => writeln!(env.error_output, "{err}")?,
+            Ok(fmt) => env.io_options.output_format = fmt,
+            Err(err) => writeln!(env.error_output(), "{err}")?,
         };
         Ok(ControlFlow::Continue(()))
     }
@@ -50,7 +52,7 @@ impl Command for Delete {
     fn run(&self, program: &mut Program, env: &mut Environment) -> Result {
         if program.undefine(&self.name).is_err() {
             writeln!(
-                env.error_output,
+                env.error_output(),
                 "no constant or function named \"{}\"",
                 self.name
             )?;
@@ -68,7 +70,7 @@ impl Command for Load {
         let code = match fs::read_to_string(&self.file) {
             Ok(code) => code,
             Err(err) => {
-                writeln!(env.error_output, "{err}")?;
+                writeln!(env.error_output(), "{err}")?;
                 return Ok(ControlFlow::Continue(()));
             }
         };
@@ -81,7 +83,7 @@ struct Help;
 
 impl Command for Help {
     fn run(&self, _program: &mut Program, env: &mut Environment) -> Result {
-        write!(env.output, include_str!("help.txt"))?;
+        write!(env.output(), include_str!("help.txt"))?;
         Ok(ControlFlow::Continue(()))
     }
 }
@@ -100,7 +102,7 @@ pub fn run(command: &str, program: &mut Program, env: &mut Environment) -> Resul
         "l" | "load" => Box::new(Load { file: args }),
         "h" | "help" => Box::new(Help),
         _ => {
-            writeln!(env.error_output, "unknown command: \":{}\"", name)?;
+            writeln!(env.error_output(), "unknown command: \":{}\"", name)?;
             super::maybe_suggest_help(env)?;
             return Ok(ControlFlow::Continue(()));
         }
