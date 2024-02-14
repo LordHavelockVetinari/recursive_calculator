@@ -106,8 +106,8 @@ approx(x, δ) = if(neg(x), -approx(-x, δ), approx'(x, mod(x, 1), δ))
 π = pi = 3.14159265358979323846264338327950288419716939937510
 
 ** exp(x) is the exponential function, e^x. **
-exp'(x, n) = nonneg(n) * (x^n / fact(n) + exp'(x, n - 1))
-exp(x) = exp'(x, 50)
+exp'(x, n) = (1 - 0^(100 - n)) * (1 + x/n*exp'(x, n + 1))
+exp(x) = exp'(x, 1)
 
 ** e, Euler's number. **
 e = exp(1)
