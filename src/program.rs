@@ -17,6 +17,7 @@ pub enum ProgramError {
     CtrlCError(#[from] CtrlCError),
 }
 
+#[derive(Debug)]
 pub struct LazyExpression {
     expression: RefCell<Expression>,
     value: OnceCell<Value>,
@@ -35,6 +36,10 @@ impl LazyExpression {
             expression: RefCell::new(expr),
             value: OnceCell::new(),
         }
+    }
+
+    pub fn destruct_not_recursively(self) -> Expression {
+        self.expression.into_inner()
     }
 
     pub fn value_if_found(&self) -> Option<&Value> {
@@ -98,7 +103,7 @@ impl Function {
 pub type RcConstant = Rc<LazyExpression>;
 pub type RcFunction = Rc<OnceCell<Function>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WeakConstant {
     data: Weak<LazyExpression>,
 }
@@ -161,7 +166,7 @@ impl From<&RcConstant> for WeakConstant {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WeakFunction {
     data: Weak<OnceCell<Function>>,
 }
@@ -302,8 +307,7 @@ impl Program {
     pub fn run(&mut self, env: &mut Environment<'_>) -> Result<(), ProgramError> {
         for expr in self.to_evaluate.drain(..) {
             let expr = LazyExpression::new(expr);
-            let value = expr
-                .evaluate(&mut env.evaluation_environment)?;
+            let value = expr.evaluate(&mut env.evaluation_environment)?;
             env.output_value(value)?;
         }
         Ok(())

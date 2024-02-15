@@ -1,6 +1,5 @@
 use crate::bool_gen::BoolGen;
 use crate::ctrlc_handler::{CtrlCError, CtrlCHandler};
-use crate::garbage;
 use crate::math::format::{Format, FormattedValue};
 use crate::math::Value;
 use std::io::{self, BufRead, Write};
@@ -25,7 +24,6 @@ impl EvaluationEnvironemnt {
     }
 
     pub fn tick(&mut self) -> Result<(), CtrlCError> {
-        garbage::collect();
         self.ctrlc_handler.catch()
     }
 }

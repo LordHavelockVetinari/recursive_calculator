@@ -3,7 +3,6 @@ mod compile;
 mod ctrlc_handler;
 mod environment;
 mod expression;
-mod garbage;
 mod math;
 mod parse;
 mod program;

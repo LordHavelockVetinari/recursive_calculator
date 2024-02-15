@@ -1,14 +1,14 @@
 use crate::ctrlc_handler::CtrlCError;
 use crate::environment::EvaluationEnvironemnt;
-use crate::garbage;
 use crate::math::{self, Value};
 use crate::program::{LazyExpression, WeakConstant, WeakFunction};
 use malachite::num::basic::traits::One;
 use malachite::Rational;
-use std::mem;
+use std::mem::{self, ManuallyDrop};
+use std::ptr;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Value(Value),
     Argument(Rc<LazyExpression>),
@@ -38,27 +38,64 @@ pub enum SimplifyResult {
 impl Drop for Expression {
     fn drop(&mut self) {
         use Expression::*;
-        match self {
-            Value(_) | Argument(_) | Constant(_) | ArgumentIndex(_) => {}
-            Neg(expr) => garbage::dispose(mem::take(expr)),
-            Add(left, right)
-            | Sub(left, right)
-            | Mul(left, right)
-            | Div(left, right)
-            | Pow(left, right) => {
-                garbage::dispose(mem::take(left));
-                garbage::dispose(mem::take(right));
-            }
-            Call(_, exprs) => {
-                for expr in exprs.drain(..) {
-                    garbage::dispose(expr);
+        if !self.has_child_expressions() {
+            return;
+        }
+        let mut to_drop = vec![mem::take(self)];
+        while let Some(expr) = to_drop.pop() {
+            let mut expr = ManuallyDrop::new(expr);
+            match &mut *expr {
+                Value(val) => unsafe {
+                    ptr::drop_in_place(val as *mut math::Value);
                 }
+                Argument(arg) => unsafe {
+                    let arg = ptr::read(arg as *mut Rc<LazyExpression>);
+                    if let Some(arg) = Rc::into_inner(arg) {
+                        to_drop.push(arg.destruct_not_recursively());
+                    }
+                },
+                Constant(con) => unsafe {
+                    ptr::drop_in_place(con as *mut WeakConstant);
+                },
+                Neg(operand) => unsafe {
+                    let operand = ptr::read(operand as *mut Box<Expression>);
+                    to_drop.push(*operand);
+                },
+                Add(left, right)
+                | Sub(left, right)
+                | Mul(left, right)
+                | Div(left, right)
+                | Pow(left, right) => unsafe {
+                    let left = ptr::read(left as *mut Box<Expression>);
+                    to_drop.push(*left);
+                    let right = ptr::read(right as *mut Box<Expression>);
+                    to_drop.push(*right);
+                },
+                Call(func, args) => {
+                    unsafe {
+                        ptr::drop_in_place(func as *mut WeakFunction);
+                    }
+                    let args = mem::take(args);
+                    for arg in args {
+                        to_drop.push(arg);
+                    }
+                }
+                ArgumentIndex(_) => {}
             }
         }
     }
 }
 
 impl Expression {
+    fn has_child_expressions(&self) -> bool {
+        use Expression::*;
+        match self {
+            Value(_) | Argument(_) | Constant(_) | ArgumentIndex(_) => false,
+            Neg(_) | Add(_, _) | Sub(_, _) | Mul(_, _) | Div(_, _) | Pow(_, _) => true,
+            Call(_, exprs) => !exprs.is_empty(),
+        }
+    }
+
     pub fn substitute_args(&mut self, args: &[Rc<LazyExpression>]) {
         use Expression::*;
         match self {

@@ -2,7 +2,7 @@ mod special_command;
 
 use crate::environment::Environment;
 use crate::program::{Program, ProgramError};
-use crate::{compile, garbage, parse};
+use crate::{compile, parse};
 use std::error::Error;
 use std::fs;
 use std::ops::ControlFlow;
@@ -42,7 +42,6 @@ fn run_str(code: &str, program: &mut Program, env: &mut Environment) -> Result<(
         return Ok(());
     }
     let res = program.run(env);
-    garbage::collect();
     match res {
         Ok(()) | Err(ProgramError::CtrlCError(_)) => Ok(()),
         Err(ProgramError::IoError(err)) => Err(err.into()),
@@ -132,6 +131,22 @@ mod test {
             ",
             "",
         );
+        assert_repl(
+            "\
+                zero = 0
+                f(n) = zero^n - -n*f(n - 1)\n\
+                f(5)\
+            ",
+            "\
+                recalc> \
+                recalc> \
+                recalc> \
+                120\n\
+                recalc> \
+            ",
+            "",
+        );
+        #[cfg(not(miri))]
         assert_repl(
             &format!(
                 "\
