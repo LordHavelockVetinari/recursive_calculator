@@ -70,9 +70,10 @@ shr(n) = (n - odd(n)) / 2
     They don't have to be integers. ***
 mod(x, y) = if(neg(x - y), x, if(neg(x - 2*y), x - y, mod(mod(x, y * 2), y)))
 
-** prime(n) returns 1 if n is prime, or 0 otherwise. **
-prime'(n, k) = or(zero(k - 1), and(mod(n, k), prime'(n, k - 1)))
-prime(n) = and(pos(n - 1), prime'(n, n - 1))
+*** prime(n) returns 1 if n is prime, or 0 otherwise.
+    n must be an integer. ***
+prime'(n, m) = (0 ^ (m - 1)) ^ 0 ^ (mod(n, m) * prime'(n, m - 2))
+prime(n) = zero(n - 2) + pos(n - 1)*odd(n)*prime'(n, n - 2)
 
 ** Greatest common divisor. **
 gcd(a, b) = if(b, gcd(b, mod(a, b)), a)
