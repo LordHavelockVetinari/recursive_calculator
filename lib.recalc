@@ -70,10 +70,24 @@ shr(n) = (n - odd(n)) / 2
     They don't have to be integers. ***
 mod(x, y) = if(neg(x - y), x, if(neg(x - 2*y), x - y, mod(mod(x, y * 2), y)))
 
+** trunc(x) rounds x towards zero. **
+trunc'(x) = x - mod(x, 1)
+trunc(x) = trunc'(abs(x)) * sgn(x)
+
+** roundToInf(x) rounds x away from zero. **
+roundToInf'(x) = if(mod(x, 1), trunc(x) + 1, x)
+roundToInf(x) = roundToInf'(abs(x)) * sgn(x)
+
+*** truncSqrt(x) finds the square root of x, rounded down.
+    x must be nonnegative. ***
+truncSqrt''(x, a, m, b) = if(nonneg(x - m^2), if(neg(x - (m + 1)^2), m, truncSqrt'(x, roundToInf(m + 0.25), b)), truncSqrt'(x, a, trunc(m - 0.25)))
+truncSqrt'(x, a, b) = truncSqrt''(x, a, trunc((a + b) / 2), b)
+truncSqrt(x) = truncSqrt'(x, 1, x)
+
 *** prime(n) returns 1 if n is prime, or 0 otherwise.
     n must be an integer. ***
 prime'(n, m) = (0 ^ (m - 1)) ^ 0 ^ (mod(n, m) * prime'(n, m - 2))
-prime(n) = zero(n - 2) + pos(n - 1)*odd(n)*prime'(n, n - 2)
+prime(n) = zero(n - 2) + pos(n - 1)*odd(n)*prime'(n, trunc(truncSqrt(n) / 2)*2 + 1)
 
 ** Greatest common divisor. **
 gcd(a, b) = if(b, gcd(b, mod(a, b)), a)
