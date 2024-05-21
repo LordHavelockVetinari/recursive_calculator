@@ -141,6 +141,10 @@ log(b, x) = ln(x) / ln(b)
 sqrt'(x, guess, i) = guess * 0^i + sqrt'(x, guess - (guess^2 - x)/(2*guess), i - 1)/i*i
 sqrt(x) = sqrt'(x, x, 10)
 
+*** hypot(a, b) finds the length of the hypotenuse of a right triangle with legs a and b.
+    The length is given by the Pythagorean equation: a^2 + b^2 = c^2. ***
+hypot(a, b) = sqrt(a^2 + b^2)
+
 ** sin(θ) finds the sine of θ using a Madhava series. **
 sin''(θ, x, n, n') = (x + sin''(θ, -x * θ^2 / ((n + 1) * (n + 2)), n + 2, n' - 1)) / n' * n'
 sin'(θ) = sin''(θ, θ, 1, 20)
